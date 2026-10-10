@@ -1,0 +1,13 @@
+# Use LF for editable source and documentation.
+*.xml text eol=lf
+*.txt text eol=lf
+*.md text eol=lf
+*.py text eol=lf
+*.json text eol=lf
+
+# Preserve the published revision byte-for-byte, including original whitespace.
+draft-primavesi-conversation-id-00.xml -text -whitespace
+draft-primavesi-conversation-id-00.txt -text -whitespace
+
+# The synthetic email fixtures use CRLF on the wire. Do not normalize them.
+*.eml -text -whitespace

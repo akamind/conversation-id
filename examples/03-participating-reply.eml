@@ -1,0 +1,13 @@
+Date: Sat, 10 Oct 2026 12:01:00 +0000
+From: Bob <bob@example.net>
+To: Alice <alice@example.com>
+Subject: Re: Project discussion
+Message-ID: <m2@example.net>
+In-Reply-To: <wire1@example.org>
+References: <wire1@example.org>
+Conversation-ID: urn:uuid:550e8400-e29b-41d4-a716-446655440000
+MIME-Version: 1.0
+Content-Type: text/plain; charset=us-ascii
+Content-Transfer-Encoding: 7bit
+
+Synthetic participating reply. This message was not sent.

@@ -1,0 +1,784 @@
+
+
+
+
+Network Working Group                                       J. Primavesi
+Internet-Draft                                              Akamind Inc.
+Intended status: Experimental                            10 October 2026
+Expires: 13 April 2027
+
+
+                 The Conversation-ID Email Header Field
+                   draft-primavesi-conversation-id-00
+
+Abstract
+
+   This document defines an experimental Conversation-ID email header
+   field.  Participating originators can use it to associate messages
+   with a conversation, alongside Message-ID, In-Reply-To, and
+   References.  The identifier is independent of any one message's
+   Message-ID.  Its usefulness depends on originators copying it into
+   new messages and intermediaries preserving it during transport.  The
+   field is an untrusted grouping hint and provides no authentication or
+   authorization.  This document specifies its syntax and processing
+   rules and describes an experiment to compare it with existing
+   correlation methods.
+
+Status of This Memo
+
+   This Internet-Draft is submitted in full conformance with the
+   provisions of BCP 78 and BCP 79.
+
+   Internet-Drafts are working documents of the Internet Engineering
+   Task Force (IETF).  Note that other groups may also distribute
+   working documents as Internet-Drafts.  The list of current Internet-
+   Drafts is at https://datatracker.ietf.org/drafts/current/.
+
+   Internet-Drafts are draft documents valid for a maximum of six months
+   and may be updated, replaced, or obsoleted by other documents at any
+   time.  It is inappropriate to use Internet-Drafts as reference
+   material or to cite them other than as "work in progress."
+
+   This Internet-Draft will expire on 13 April 2027.
+
+Copyright Notice
+
+   Copyright (c) 2026 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents (https://trustee.ietf.org/
+   license-info) in effect on the date of publication of this document.
+   Please review these documents carefully, as they describe your rights
+
+
+
+Primavesi                 Expires 13 April 2027                 [Page 1]
+
+Internet-Draft               Conversation-ID                October 2026
+
+
+   and restrictions with respect to this document.  Code Components
+   extracted from this document must include Revised BSD License text as
+   described in Section 4.e of the Trust Legal Provisions and are
+   provided without warranty as described in the Revised BSD License.
+
+Table of Contents
+
+   1.  Introduction  . . . . . . . . . . . . . . . . . . . . . . . .   2
+   2.  Terminology and Scope . . . . . . . . . . . . . . . . . . . .   3
+   3.  The Conversation-ID Header Field  . . . . . . . . . . . . . .   3
+     3.1.  Syntax and Cardinality  . . . . . . . . . . . . . . . . .   3
+     3.2.  Parsing and Equality  . . . . . . . . . . . . . . . . . .   4
+     3.3.  Semantics . . . . . . . . . . . . . . . . . . . . . . . .   5
+     3.4.  Generation  . . . . . . . . . . . . . . . . . . . . . . .   5
+     3.5.  Replies and Conversation Boundaries . . . . . . . . . . .   6
+     3.6.  Relay, Redistribution, and Stored Messages  . . . . . . .   6
+   4.  Relationship to Existing Mechanisms . . . . . . . . . . . . .   7
+   5.  Experiment Plan . . . . . . . . . . . . . . . . . . . . . . .   8
+     5.1.  Evaluation and Reporting  . . . . . . . . . . . . . . . .   8
+     5.2.  Planned Evaluation Environment  . . . . . . . . . . . . .   8
+   6.  Security Considerations . . . . . . . . . . . . . . . . . . .   9
+   7.  Privacy Considerations  . . . . . . . . . . . . . . . . . . .  10
+   8.  IANA Considerations . . . . . . . . . . . . . . . . . . . . .  10
+   9.  Normative References  . . . . . . . . . . . . . . . . . . . .  11
+   10. Informative References  . . . . . . . . . . . . . . . . . . .  11
+   Appendix A.  Illustrative Message Sequence  . . . . . . . . . . .  13
+   Author's Address  . . . . . . . . . . . . . . . . . . . . . . . .  14
+
+1.  Introduction
+
+   Internet mail identifies messages with Message-ID and records reply
+   relationships in In-Reply-To and References [RFC5322].  These fields
+   support threading even when some history is missing: the REFERENCES
+   algorithm in [RFC5256], for example, accounts for truncated
+   References fields.
+
+   Some submission services replace a supplied Message-ID, as documented
+   by the Amazon SES SendRawEmail API [SES-RAW].  An application may
+   then fail to associate a reply with the message it sent if it has not
+   retained the delivered identifier.  Provider event data can expose
+   assigned and original identifiers [SES-EVENTS], allowing the
+   application to maintain a mapping.  A service API identifier is not
+   necessarily the complete Message-ID field value.
+
+   Conversation-ID adds an explicit, constant-size conversation
+   identifier independent of any particular message.  One possible use
+   is a conversation continued by independently operated applications
+   that do not share a complete reply history.  A root Message-ID or
+
+
+
+Primavesi                 Expires 13 April 2027                 [Page 2]
+
+Internet-Draft               Conversation-ID                October 2026
+
+
+   provider identifier mapping may give equivalent results.  The
+   experiment compares these approaches to determine whether an explicit
+   conversation field offers enough benefit to justify changes to
+   originators and the additional exposure of correlation metadata.
+
+   Transport preservation and reply propagation require separate
+   support.  A client can preserve an incoming message unchanged yet
+   omit Conversation-ID from the reply it generates.  Existing clients
+   are not required to copy this field, and nonparticipating
+   intermediaries may remove it.  Grouping policy remains local.  This
+   document defines no universal grouping algorithm, SMTP extension, or
+   conversation discovery service.
+
+2.  Terminology and Scope
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in BCP
+   14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+   The terms Mail User Agent (MUA), Mail Submission Agent (MSA), and
+   Mail Transfer Agent (MTA) follow [RFC5598].  A participating
+   originator is an MUA or application implementing this specification,
+   or an MSA acting on its behalf with sufficient conversation context.
+   The requirements apply to implementations of this experiment.
+
+   A conversation is a context that an originator intends to continue
+   across messages.  Recipients apply their own grouping and access-
+   control policies.  The originator's assertion does not establish
+   membership or require recipients to display the same thread; it does
+   not define a global equivalence relation.
+
+3.  The Conversation-ID Header Field
+
+3.1.  Syntax and Cardinality
+
+   Conversation-ID is an optional, structured Internet mail header
+   field.  A generated message MUST contain no more than one instance of
+   this field.  It is not a trace field and does not form part of a
+   Resent-* block.
+
+   The following syntax uses ABNF [RFC5234].  FWS is imported from
+   [RFC5322], Section 3.2.2.  HEXDIG and CRLF are imported from
+   [RFC5234], Appendix B.1.  Quoted ABNF strings are case-insensitive.
+
+
+
+
+
+
+Primavesi                 Expires 13 April 2027                 [Page 3]
+
+Internet-Draft               Conversation-ID                October 2026
+
+
+   conversation-id = "Conversation-ID:" [FWS] cid-value [FWS] CRLF
+   cid-value       = "urn:uuid:" uuid-v4
+   uuid-v4         = 8HEXDIG "-" 4HEXDIG "-" "4" 3HEXDIG
+                     "-" uuid-variant 3HEXDIG "-" 12HEXDIG
+   uuid-variant    = "8" / "9" / "a" / "b"
+
+   The value is a UUID version 4 URN [RFC9562], Sections 4 and 5.4.
+   Only version 4 with the two high-order variant bits set to 10 is
+   accepted.  White space is allowed only outside the complete cid-value
+   token.  Parameters, comments, quoted strings, angle brackets, and
+   lists are not allowed.
+
+   A newly generated field MUST use lowercase for the URN prefix and
+   hexadecimal digits.  Generators SHOULD emit one SP after the colon,
+   no trailing white space, and no folding.  They MUST NOT generate
+   obsolete folding syntax.  In this form the field is 62 ASCII
+   characters excluding its terminating CRLF:
+
+   Conversation-ID: urn:uuid:550e8400-e29b-41d4-a716-446655440000
+
+3.2.  Parsing and Equality
+
+   A receiver MUST count all field instances using a case-insensitive
+   comparison of the field name before selecting a value.  If there is
+   exactly one instance, the receiver unfolds it according to [RFC5322]
+   and removes surrounding SP and HTAB characters from its field body.
+   The remaining 45-octet token MUST match cid-value in Section 3.1.
+   Receivers MUST accept uppercase and mixed-case forms allowed by the
+   ABNF.
+
+   Two valid values are equal if their UUIDs contain the same 128 bits.
+   Lowercasing the complete validated ASCII token gives an equivalent
+   comparison.  Internal white space, an unsupported UUID version or
+   variant, or additional content makes the field unusable.  Receivers
+   MUST NOT repair such content into a valid identifier.
+
+   If the field is absent, malformed, or present more than once, a
+   receiver MUST NOT use any Conversation-ID value from that message for
+   conversation correlation.  This rule applies even when duplicate
+   instances have identical values or only one is valid.
+
+   A receiver MUST NOT reject delivery solely because the field is
+   absent, invalid, or duplicated.  It processes the message using its
+   existing mechanisms and policies.  Normal message-size, syntax, and
+   security limits still apply.  Ignoring the field does not require
+   changing the stored or relayed message.
+
+
+
+
+
+Primavesi                 Expires 13 April 2027                 [Page 4]
+
+Internet-Draft               Conversation-ID                October 2026
+
+
+3.3.  Semantics
+
+   A valid Conversation-ID expresses the originator's intention to
+   associate a message with a conversation.  Originators MUST still
+   construct Message-ID, In-Reply-To, and References according to
+   [RFC5322], including their generation and uniqueness rules.
+
+   Matching Conversation-ID values alone MUST NOT be treated as
+   sufficient evidence for automatic grouping.  Receivers need
+   additional evidence evaluated under local policy, such as known reply
+   relationships together with participant checks, a trusted
+   application's stored conversation context, or an explicit user
+   decision.  Neither a Subject match nor an unauthenticated From
+   address establishes that evidence by itself.
+
+   If Conversation-ID conflicts with established reply relationships or
+   an existing local grouping, receivers MUST NOT merge conversations
+   solely to honor it.  They MAY ignore the field or request an explicit
+   grouping decision.  A different or missing Conversation-ID does not
+   require splitting messages already associated through other evidence.
+   Global conflict resolution and identifier aliasing are outside the
+   scope of this document.
+
+3.4.  Generation
+
+   A participating originator MAY generate a Conversation-ID when
+   starting a conversation.  It MUST use a fresh UUIDv4 generated with a
+   cryptographically secure random source, as discussed in [RFC9562],
+   Section 6.9.  The remaining 122 bits MUST be random; implementations
+   MUST NOT encode a user, customer, campaign, tenant, host address, or
+   timestamp in them.
+
+   The identifier MUST NOT deliberately be reused across unrelated
+   conversations.  It MUST NOT be derived from message content, an
+   address, a subject, or an application identifier.  An MSA without
+   sufficient conversation context MUST NOT add this field merely
+   because an incoming submission lacks it.
+
+   An identifier can be introduced into an existing conversation.  It
+   applies from that point onward; earlier messages remain unchanged.
+   Independent participants might introduce different identifiers into
+   the same discussion.  Such conflicts are handled as described in
+   Section 3.3.
+
+
+
+
+
+
+
+
+Primavesi                 Expires 13 April 2027                 [Page 5]
+
+Internet-Draft               Conversation-ID                October 2026
+
+
+3.5.  Replies and Conversation Boundaries
+
+   For a reply intended to continue its parent's conversation, a
+   participating originator SHOULD include Conversation-ID.  If it
+   includes the field and the parent has a valid identifier, it MUST
+   reuse that identifier.  It MAY omit the field under an applicable
+   security or privacy policy.  Included identifiers use the format in
+   Section 3.1.  Parallel replies can share a Conversation-ID while
+   retaining distinct Message-ID values and reply relationships.
+
+   If the parent has no usable field, an originator MAY reuse an
+   identifier already associated with that parent in trusted local
+   state.  Establishing that association requires the checks in
+   Section 3.3.  Otherwise, it MAY omit the field or generate a fresh
+   identifier.  It MUST NOT pick one value from duplicated or malformed
+   fields as a substitute for that state.
+
+   A participating application MAY also reuse an identifier from trusted
+   local state in a non-reply message that continues an established
+   conversation.  Sharing a Conversation-ID does not require adding In-
+   Reply-To or References where no corresponding reply relationship
+   exists.
+
+   When starting a separate conversation, including a private branch,
+   the originator MUST either generate a fresh identifier or omit the
+   field.  A changed Subject alone does not establish that intention.
+   An implementation SHOULD let its user or calling application choose
+   whether to start a separate conversation.
+
+   A user-composed forward, including a forward as an attachment, SHOULD
+   be treated as a new conversation by default.  An explicit decision to
+   continue the same context MAY retain the identifier, after
+   considering the changed audience.  Fields in an attached message
+   apply to that message and are not automatically inherited by the
+   outer message.  Existing reply-field semantics still apply.
+
+3.6.  Relay, Redistribution, and Stored Messages
+
+   Except when applying the removal policy below, an MSA, MTA, or
+   gateway implementing this specification MUST preserve a single valid
+   Conversation-ID during ordinary submission or relay, including when
+   it assigns a different Message-ID.  The same requirement applies to a
+   participating mailing-list redistributor or automatic forwarder when
+   forwarding the same message.  An implementation MUST NOT replace that
+   valid identifier merely because Message-ID changes.
+
+
+
+
+
+
+Primavesi                 Expires 13 April 2027                 [Page 6]
+
+Internet-Draft               Conversation-ID                October 2026
+
+
+   An intermediary MAY remove the field to enforce an explicit security
+   or privacy policy at a processing boundary.  This exception permits
+   removal, not replacement during ordinary relay.  Removal loses the
+   additional correlation signal but cannot make earlier copies
+   unlinkable.  When preserving a field, implementations SHOULD leave
+   its wire representation unchanged; even semantically harmless
+   rewriting can affect signatures.
+
+   The experiment depends on preservation along the delivery path,
+   including through nonparticipating intermediaries that have no
+   obligation to preserve the field.  Removal and its effect on
+   correlation are measured under Section 5.1.
+
+   Stored correlation metadata SHOULD be kept separately from the
+   original message.  A service MUST NOT alter a stored original or a
+   message accepted for delivery or ordinary relay solely to add its
+   local Conversation-ID.  A participating MSA acting on behalf of the
+   originator can add the field during initial submission if it has
+   sufficient conversation context and follows the generation,
+   propagation, and cardinality rules.  The effects on existing
+   signatures are described in Section 6.
+
+4.  Relationship to Existing Mechanisms
+
+   The name Conversation-ID also appeared in the expired PePP instant-
+   messaging proposal [PEPP], Section 6.19.  That proposal provides
+   historical context.  This specification defines the field for
+   Internet mail and does not specify interoperability or a shared
+   identifier namespace with PePP.
+
+   Message-ID identifies a message, while In-Reply-To and References
+   describe its ancestry [RFC5322].  Conversation-ID does not recover
+   missing ancestors or establish message order.  References can be
+   folded across lines, so the per-line length limit is not a limit on
+   the total length of that field.
+
+   IMAP THREAD [RFC5256], IMAP OBJECTID THREADID [RFC8474], and JMAP
+   threadId [RFC8621] expose server-computed groupings or identifiers.
+   A server MAY consider a valid Conversation-ID under local policy, but
+   MUST NOT infer that it can change an already assigned server
+   identifier in violation of those protocols.  This specification
+   defines no direct mapping or shared namespace between Conversation-ID
+   and those identifiers.
+
+   The experiment also compares approaches based on root Message-ID
+   values, provider identifier mappings, and application-specific reply
+   routing where available.  Existing fields such as Thread-Index and
+   Thread-Topic are unaffected.
+
+
+
+Primavesi                 Expires 13 April 2027                 [Page 7]
+
+Internet-Draft               Conversation-ID                October 2026
+
+
+5.  Experiment Plan
+
+   The experiment will compare existing correlation methods with and
+   without Conversation-ID across independently operated systems,
+   considering grouping errors, disclosure risks, and integration
+   effort.  This revision reports no measurements.
+
+5.1.  Evaluation and Reporting
+
+   Reports should distinguish participating originators from unmodified
+   clients, and transport preservation from propagation into replies.
+   Record client and server versions, submission paths, enabled
+   features, and test dates.  Use synthetic messages or appropriately
+   redacted fixtures so that others can reproduce the results.
+
+   The baseline should use correctly generated reply fields and
+   available mappings between original and delivered Message-ID values.
+   Tests should cover replies, reply-all, concurrent replies, changed
+   subjects, private branches, mailing lists, user-composed and
+   automatic forwards, and removal of Conversation-ID.  Include forged
+   identifiers, duplicate fields, malformed values, conflicting
+   ancestry, and cross-tenant input.
+
+   Report transport preservation, reply propagation, correct
+   correlations, false merges, false splits, integration effort, and
+   mapping-maintenance cost separately, including changes from the
+   baseline.  Tests between services under common control do not by
+   themselves establish independent implementation.  Report negative
+   results as well, including loss of the field on common paths and
+   cases where it provides no additional benefit.
+
+   A successful result should show reproducible gains on documented
+   paths between independently implemented participants, including
+   handling of conflicts and legacy clients.  Any unauthorized cross-
+   account disclosure blocks deployment.  If propagation changes prove
+   impractical or the field offers no useful gain over the baseline, the
+   design should be revised or the experiment discontinued.
+
+5.2.  Planned Evaluation Environment
+
+   Note to the RFC Editor: remove this subsection before publication.
+
+   The author plans to evaluate the field in Oveyon
+   (https://oveyon.com/), an email service operated by Akamind Inc.
+   Independent MUA, helpdesk, and mail-service implementers are invited
+   to take part.  Later revisions can document verified implementation
+   status and interoperability results following [RFC7942].
+
+
+
+
+Primavesi                 Expires 13 April 2027                 [Page 8]
+
+Internet-Draft               Conversation-ID                October 2026
+
+
+6.  Security Considerations
+
+   An attacker can copy or choose a syntactically valid identifier; UUID
+   uniqueness does not prevent deliberate reuse.  Receivers MUST NOT
+   treat possession of a Conversation-ID as permission to retrieve
+   history, join a private conversation, select another tenant, or
+   trigger a privileged action.  Automated agents and workflow systems
+   need authorization checks independent of this field.
+
+   Correlation lookups MUST remain inside the applicable account,
+   tenant, mailbox, or otherwise authorized processing context.
+   Implementations MUST NOT automatically merge records across access
+   boundaries because identifiers match.  Authentication of a sender
+   alone does not establish that sender's authority over a particular
+   conversation.
+
+   An originator including Conversation-ID in a message it signs with
+   DKIM [RFC6376] SHOULD add the field before generating the signature
+   and SHOULD include it among the signed header fields.  Signers SHOULD
+   consider protecting against insertion of another instance as
+   described in [RFC6376], Section 5.4.  Verification authenticates the
+   signing domain's assertion and the covered content.  It does not
+   establish conversation membership or identify the party that created
+   the identifier.
+
+   If a gateway adds Conversation-ID after DKIM signing, a signature
+   whose h= list omits the field name does not cover the added field.
+   The addition alone does not invalidate that signature.  If the signer
+   listed Conversation-ID in h= when the field was absent, adding it
+   causes that signature to fail verification; see [RFC6376], Sections
+   3.5 and 5.4.
+
+   A later signature covering the field conveys that signer's assertion;
+   it does not extend or repair an earlier signature.  Implementations
+   evaluating integrity MUST determine whether a successfully verified
+   signature covers the field.  A message-level DKIM pass is
+   insufficient.  Signing does not permit field insertion prohibited by
+   Section 3.6.
+
+   Implementations MUST apply the duplicate and malformed-field rules in
+   Section 3.2, bound parsing and storage work, and treat the value as
+   data.  They MUST NOT automatically resolve the URN or fetch an
+   external resource solely because the field is present.  Authorized
+   lookups in implementation storage or configured services remain
+   possible.  No origin authority or resource-resolution mechanism is
+   defined.
+
+
+
+
+
+Primavesi                 Expires 13 April 2027                 [Page 9]
+
+Internet-Draft               Conversation-ID                October 2026
+
+
+   Without an applicable integrity mechanism, removal of the field may
+   go undetected.  Its absence MUST NOT grant additional privileges or
+   bypass existing policy.  Adding a valid field MUST NOT increase trust
+   in message bodies or instructions supplied to automated agents.
+
+7.  Privacy Considerations
+
+   A stable identifier allows recipients, intermediaries, archives, and
+   log operators to correlate messages.  It can expose relationships
+   even when addresses or subjects differ.  [RFC6973] discusses
+   correlation and secondary-use risks.
+
+   UUIDv4 avoids encoding a host address or timestamp, but the
+   identifier is neither secret nor resistant to tracking.  Originators
+   MUST NOT deliberately reuse it as a customer, campaign, or cross-
+   conversation tracking identifier.  Private branches and forwards
+   follow the boundary policy in Section 3.5.  Removing Conversation-ID
+   leaves other possible links through References, quoted content, and
+   attachments.
+
+   Operators SHOULD minimize retention and sharing of identifiers in
+   telemetry and public test reports.  Users or applications SHOULD be
+   able to omit the field when exposing conversation continuity is
+   inappropriate.
+
+8.  IANA Considerations
+
+   IANA is requested to register Conversation-ID in the Provisional
+   Message Header Field Names registry [RFC3864] using the following
+   template.
+
+   Header field name:
+      Conversation-ID
+
+   Applicable protocol:
+      mail
+
+   Status:
+      provisional
+
+   Trace:
+      no
+
+   Author/Change controller:
+      Juliano Primavesi, Akamind Inc.; jprimavesi@akamind.net
+
+   Specification document(s):
+      This document, Section 3.
+
+
+
+Primavesi                 Expires 13 April 2027                [Page 10]
+
+Internet-Draft               Conversation-ID                October 2026
+
+
+   Related information:
+      None.
+
+   Provisional registration does not imply endorsement by the IETF or
+   IANA.
+
+9.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <https://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC5234]  Crocker, D., Ed. and P. Overell, "Augmented BNF for Syntax
+              Specifications: ABNF", STD 68, RFC 5234,
+              DOI 10.17487/RFC5234, January 2008,
+              <https://www.rfc-editor.org/info/rfc5234>.
+
+   [RFC5322]  Resnick, P., Ed., "Internet Message Format", RFC 5322,
+              DOI 10.17487/RFC5322, October 2008,
+              <https://www.rfc-editor.org/info/rfc5322>.
+
+   [RFC6376]  Crocker, D., Ed., Hansen, T., Ed., and M. Kucherawy, Ed.,
+              "DomainKeys Identified Mail (DKIM) Signatures", STD 76,
+              RFC 6376, DOI 10.17487/RFC6376, September 2011,
+              <https://www.rfc-editor.org/info/rfc6376>.
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
+              2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
+              May 2017, <https://www.rfc-editor.org/info/rfc8174>.
+
+   [RFC9562]  Davis, K., Peabody, B., and P. Leach, "Universally Unique
+              IDentifiers (UUIDs)", RFC 9562, DOI 10.17487/RFC9562, May
+              2024, <https://www.rfc-editor.org/info/rfc9562>.
+
+10.  Informative References
+
+   [PEPP]     Sugano, H., Iwakawa, A., Otani, K., Ohno, T., and S.
+              Fujimoto, "Privacy-enhanced Presence Protocol (PePP)",
+              Work in Progress, Internet-Draft, draft-sugano-impp-
+              proposal-pepp-00, 14 June 2000,
+              <https://datatracker.ietf.org/doc/html/draft-sugano-impp-
+              proposal-pepp-00>.  Expired historical proposal; cited for
+              context only.
+
+
+
+
+
+
+
+Primavesi                 Expires 13 April 2027                [Page 11]
+
+Internet-Draft               Conversation-ID                October 2026
+
+
+   [RFC3864]  Klyne, G., Nottingham, M., and J. Mogul, "Registration
+              Procedures for Message Header Fields", BCP 90, RFC 3864,
+              DOI 10.17487/RFC3864, September 2004,
+              <https://www.rfc-editor.org/info/rfc3864>.
+
+   [RFC5256]  Crispin, M. and K. Murchison, "Internet Message Access
+              Protocol - SORT and THREAD Extensions", RFC 5256,
+              DOI 10.17487/RFC5256, June 2008,
+              <https://www.rfc-editor.org/info/rfc5256>.
+
+   [RFC5598]  Crocker, D., "Internet Mail Architecture", RFC 5598,
+              DOI 10.17487/RFC5598, July 2009,
+              <https://www.rfc-editor.org/info/rfc5598>.
+
+   [RFC6973]  Cooper, A., Tschofenig, H., Aboba, B., Peterson, J.,
+              Morris, J., Hansen, M., and R. Smith, "Privacy
+              Considerations for Internet Protocols", RFC 6973,
+              DOI 10.17487/RFC6973, July 2013,
+              <https://www.rfc-editor.org/info/rfc6973>.
+
+   [RFC7942]  Sheffer, Y. and A. Farrel, "Improving Awareness of Running
+              Code: The Implementation Status Section", BCP 205,
+              RFC 7942, DOI 10.17487/RFC7942, July 2016,
+              <https://www.rfc-editor.org/info/rfc7942>.
+
+   [RFC8474]  Gondwana, B., Ed., "IMAP Extension for Object
+              Identifiers", RFC 8474, DOI 10.17487/RFC8474, September
+              2018, <https://www.rfc-editor.org/info/rfc8474>.
+
+   [RFC8621]  Jenkins, N. and C. Newman, "The JSON Meta Application
+              Protocol (JMAP) for Mail", RFC 8621, DOI 10.17487/RFC8621,
+              August 2019, <https://www.rfc-editor.org/info/rfc8621>.
+
+   [SES-EVENTS]
+              Amazon Web Services, "Contents of event data that Amazon
+              SES publishes to Amazon SNS",
+              <https://docs.aws.amazon.com/ses/latest/dg/event-
+              publishing-retrieving-sns-contents.html>.  Accessed 10
+              October 2026.
+
+   [SES-RAW]  Amazon Web Services, "SendRawEmail - Amazon Simple Email
+              Service",
+              <https://docs.aws.amazon.com/ses/latest/APIReference/
+              API_SendRawEmail.html>.  Accessed 10 October 2026.
+
+
+
+
+
+
+
+Primavesi                 Expires 13 April 2027                [Page 12]
+
+Internet-Draft               Conversation-ID                October 2026
+
+
+Appendix A.  Illustrative Message Sequence
+
+   These field fragments omit unrelated fields.  Alice originates a
+   message with a fresh identifier:
+
+   From: Alice <alice@example.com>
+   To: Bob <bob@example.net>
+   Subject: Project discussion
+   Message-ID: <m1@example.com>
+   Conversation-ID: urn:uuid:550e8400-e29b-41d4-a716-446655440000
+
+   Bob's participating client continues that conversation.  The Message-
+   ID changes and the Conversation-ID stays the same:
+
+   From: Bob <bob@example.net>
+   To: Alice <alice@example.com>
+   Subject: Re: Project discussion
+   Message-ID: <m2@example.net>
+   In-Reply-To: <m1@example.com>
+   References: <m1@example.com>
+   Conversation-ID: urn:uuid:550e8400-e29b-41d4-a716-446655440000
+
+   If a submission service instead delivered Alice's Message-ID as
+   <wire1@example.org>, Bob's reply fields would reference that
+   delivered identifier.  A preserved Conversation-ID could still supply
+   the same additional hint when Bob's client participates.
+
+   For a third case, assume Message-ID was rewritten as above and Bob
+   uses a nonparticipating client.  Its reply might contain these
+   fields, with no Conversation-ID:
+
+   From: Bob <bob@example.net>
+   To: Alice <alice@example.com>
+   Subject: Re: Project discussion
+   Message-ID: <m3@example.net>
+   In-Reply-To: <wire1@example.org>
+   References: <wire1@example.org>
+
+   Alice's application correlates this reply using the conventional
+   reply fields and any trusted local mapping from <wire1@example.org>
+   to <m1@example.com>, subject to Section 3.3.  The missing field does
+   not by itself start a new conversation or constitute a delivery
+   error.  If the available evidence is insufficient, the application
+   can leave the reply ungrouped pending a local or user decision.
+
+
+
+
+
+
+
+Primavesi                 Expires 13 April 2027                [Page 13]
+
+Internet-Draft               Conversation-ID                October 2026
+
+
+   If trusted local state associates the reply with the earlier
+   conversation, Alice can reuse its identifier in a newly composed
+   response as described in Section 3.5.  Her application does not
+   insert the missing field into Bob's stored message; see Section 3.6.
+
+   If Bob forwards the message to Carol to start a private discussion,
+   the outer message uses a fresh identifier or omits Conversation-ID.
+   It does not automatically inherit Alice's identifier from quoted or
+   attached content.
+
+Author's Address
+
+   Juliano Primavesi
+   Akamind Inc.
+   Email: jprimavesi@akamind.net
+   URI:   https://akamind.net/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Primavesi                 Expires 13 April 2027                [Page 14]

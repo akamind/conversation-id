@@ -1,0 +1,714 @@
+<?xml version='1.0' encoding='utf-8'?>
+<rfc xmlns:xi="http://www.w3.org/2001/XInclude" version="3" category="exp" ipr="trust200902" docName="draft-primavesi-conversation-id-00" submissionType="IETF" consensus="false" tocInclude="true" tocDepth="3" symRefs="true" sortRefs="true">
+  <front>
+    <title abbrev="Conversation-ID">The Conversation-ID Email Header Field</title>
+    <author fullname="Juliano Primavesi" initials="J." surname="Primavesi">
+      <organization abbrev="Akamind Inc.">Akamind Inc.</organization>
+      <address>
+        <email>jprimavesi@akamind.net</email>
+        <uri>https://akamind.net/</uri>
+      </address>
+    </author>
+    <date year="2026" month="October" day="10"/>
+    <area>Applications and Real-Time</area>
+    <keyword>email</keyword>
+    <keyword>conversation</keyword>
+    <keyword>threading</keyword>
+    <abstract>
+      <t>This document defines an experimental Conversation-ID email
+      header field. Participating originators can use it to associate
+      messages with a conversation, alongside Message-ID, In-Reply-To,
+      and References. The identifier is independent of any one message's
+      Message-ID. Its usefulness depends on originators copying it into
+      new messages and intermediaries preserving it during transport.
+      The field is an untrusted grouping hint and provides no
+      authentication or authorization. This document specifies its
+      syntax and processing rules and describes an experiment to compare
+      it with existing correlation methods.</t>
+    </abstract>
+  </front>
+  <middle>
+    <section anchor="introduction">
+      <name>Introduction</name>
+      <t>Internet mail identifies messages with Message-ID and records
+      reply relationships in In-Reply-To and References
+      <xref target="RFC5322"/>. These fields support threading even when
+      some history is missing: the REFERENCES algorithm in
+      <xref target="RFC5256"/>, for example, accounts for truncated
+      References fields.</t>
+      <t>Some submission services replace a supplied Message-ID, as
+      documented by the Amazon SES SendRawEmail API
+      <xref target="SES-RAW"/>. An application may then fail to associate
+      a reply with the message it sent if it has not retained the
+      delivered identifier. Provider event data can expose assigned and
+      original identifiers <xref target="SES-EVENTS"/>, allowing the
+      application to maintain a mapping. A service API identifier is
+      not necessarily the complete Message-ID field value.</t>
+      <t>Conversation-ID adds an explicit, constant-size conversation
+      identifier independent of any particular message. One possible use
+      is a conversation continued by independently operated applications
+      that do not share a complete reply history. A root Message-ID or
+      provider identifier mapping may give equivalent results. The
+      experiment compares these approaches to determine whether an
+      explicit conversation field offers enough benefit to justify
+      changes to originators and the additional exposure of correlation
+      metadata.</t>
+      <t>Transport preservation and reply propagation require separate
+      support. A client can preserve an incoming message unchanged yet
+      omit Conversation-ID from the reply it generates. Existing clients
+      are not required to copy this field, and nonparticipating
+      intermediaries may remove it. Grouping policy remains local.
+      This document defines no universal grouping algorithm, SMTP
+      extension, or conversation discovery service.</t>
+    </section>
+    <section anchor="terminology">
+      <name>Terminology and Scope</name>
+      <t>The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+      "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+      "OPTIONAL" in this document are to be interpreted as described in
+      BCP 14 <xref target="RFC2119"/> <xref target="RFC8174"/> when, and
+      only when, they appear in all capitals, as shown here.</t>
+      <t>The terms Mail User Agent (MUA), Mail Submission Agent (MSA),
+      and Mail Transfer Agent (MTA) follow <xref target="RFC5598"/>.
+      A participating originator is an MUA or application implementing
+      this specification, or an MSA acting on its behalf with sufficient
+      conversation context. The requirements apply to implementations
+      of this experiment.</t>
+      <t>A conversation is a context that an originator intends to
+      continue across messages. Recipients apply their own grouping and
+      access-control policies. The originator's assertion does not
+      establish membership or require recipients to display the same
+      thread; it does not define a global equivalence relation.</t>
+    </section>
+    <section anchor="field">
+      <name>The Conversation-ID Header Field</name>
+      <section anchor="syntax">
+        <name>Syntax and Cardinality</name>
+        <t>Conversation-ID is an optional, structured Internet mail
+        header field. A generated message <bcp14>MUST</bcp14> contain no more than one
+        instance of this field. It is not a trace field and does not
+        form part of a Resent-* block.</t>
+        <t>The following syntax uses ABNF <xref target="RFC5234"/>.
+        FWS is imported from <xref target="RFC5322"/>, Section 3.2.2.
+        HEXDIG and CRLF are imported from <xref target="RFC5234"/>,
+        Appendix B.1. Quoted ABNF strings are case-insensitive.</t>
+        <sourcecode type="abnf"><![CDATA[
+conversation-id = "Conversation-ID:" [FWS] cid-value [FWS] CRLF
+cid-value       = "urn:uuid:" uuid-v4
+uuid-v4         = 8HEXDIG "-" 4HEXDIG "-" "4" 3HEXDIG
+                  "-" uuid-variant 3HEXDIG "-" 12HEXDIG
+uuid-variant    = "8" / "9" / "a" / "b"
+]]></sourcecode>
+        <t>The value is a UUID version 4 URN <xref target="RFC9562"/>,
+        Sections 4 and 5.4. Only version 4 with the two high-order variant
+        bits set to 10 is accepted. White space is allowed only outside
+        the complete cid-value token. Parameters, comments, quoted
+        strings, angle brackets, and lists are not allowed.</t>
+        <t>A newly generated field <bcp14>MUST</bcp14> use lowercase for the URN prefix
+        and hexadecimal digits. Generators <bcp14>SHOULD</bcp14> emit one SP after the
+        colon, no trailing white space, and no folding. They <bcp14>MUST NOT</bcp14>
+        generate obsolete folding syntax. In this form the field is
+        62 ASCII characters excluding its terminating CRLF:</t>
+        <artwork><![CDATA[
+Conversation-ID: urn:uuid:550e8400-e29b-41d4-a716-446655440000
+]]></artwork>
+      </section>
+      <section anchor="parsing">
+        <name>Parsing and Equality</name>
+        <t>A receiver <bcp14>MUST</bcp14> count all field instances using a
+        case-insensitive comparison of the field name before selecting
+        a value. If there is exactly one instance, the receiver unfolds
+        it according to <xref target="RFC5322"/> and removes surrounding
+        SP and HTAB characters from its field body. The remaining
+        45-octet token <bcp14>MUST</bcp14> match cid-value in <xref target="syntax"/>.
+        Receivers <bcp14>MUST</bcp14> accept uppercase and mixed-case forms allowed
+        by the ABNF.</t>
+        <t>Two valid values are equal if their UUIDs contain the same
+        128 bits. Lowercasing the complete validated ASCII token gives
+        an equivalent comparison. Internal white space, an unsupported
+        UUID version or variant, or additional content makes the field
+        unusable. Receivers <bcp14>MUST NOT</bcp14> repair such content into a valid
+        identifier.</t>
+        <t>If the field is absent, malformed, or present more than once,
+        a receiver <bcp14>MUST NOT</bcp14> use any Conversation-ID value from that
+        message for conversation correlation. This rule applies even
+        when duplicate instances have identical values or only one
+        is valid.</t>
+        <t>A receiver <bcp14>MUST NOT</bcp14> reject delivery solely because the field
+        is absent, invalid, or duplicated. It processes the message using
+        its existing mechanisms and policies. Normal message-size,
+        syntax, and security limits still apply. Ignoring the field does
+        not require changing the stored or relayed message.</t>
+      </section>
+      <section anchor="semantics">
+        <name>Semantics</name>
+        <t>A valid Conversation-ID expresses the originator's intention
+        to associate a message with a conversation. Originators
+        <bcp14>MUST</bcp14> still construct Message-ID, In-Reply-To, and References
+        according to <xref target="RFC5322"/>, including their generation
+        and uniqueness rules.</t>
+        <t>Matching Conversation-ID values alone <bcp14>MUST NOT</bcp14> be treated
+        as sufficient evidence for automatic grouping. Receivers need
+        additional evidence evaluated under local policy, such as known
+        reply relationships together with participant checks, a trusted
+        application's stored conversation context, or an explicit user
+        decision. Neither a Subject match nor an unauthenticated From
+        address establishes that evidence by itself.</t>
+        <t>If Conversation-ID conflicts with established reply relationships
+        or an existing local grouping, receivers <bcp14>MUST NOT</bcp14> merge
+        conversations solely to honor it. They <bcp14>MAY</bcp14> ignore the field or
+        request an explicit grouping decision. A different or missing
+        Conversation-ID does not require splitting messages already
+        associated through other evidence. Global conflict resolution
+        and identifier aliasing are outside the scope of this document.</t>
+      </section>
+      <section anchor="generation">
+        <name>Generation</name>
+        <t>A participating originator <bcp14>MAY</bcp14> generate a Conversation-ID
+        when starting a conversation. It <bcp14>MUST</bcp14> use a fresh UUIDv4
+        generated with a cryptographically secure random source, as
+        discussed in <xref target="RFC9562"/>, Section 6.9. The remaining
+        122 bits <bcp14>MUST</bcp14> be random; implementations <bcp14>MUST NOT</bcp14> encode a user,
+        customer, campaign, tenant, host address, or timestamp in them.</t>
+        <t>The identifier <bcp14>MUST NOT</bcp14> deliberately be reused across
+        unrelated conversations. It <bcp14>MUST NOT</bcp14> be derived from message
+        content, an address, a subject, or an application identifier.
+        An MSA without sufficient conversation context <bcp14>MUST NOT</bcp14> add
+        this field merely because an incoming submission lacks it.</t>
+        <t>An identifier can be introduced into an existing conversation.
+        It applies from that point onward; earlier messages remain
+        unchanged. Independent participants might introduce different
+        identifiers into the same discussion. Such conflicts are handled
+        as described in <xref target="semantics"/>.</t>
+      </section>
+      <section anchor="reply">
+        <name>Replies and Conversation Boundaries</name>
+        <t>For a reply intended to continue its parent's conversation,
+        a participating originator <bcp14>SHOULD</bcp14> include Conversation-ID.
+        If it includes the field and the parent has a valid identifier,
+        it <bcp14>MUST</bcp14> reuse that identifier. It <bcp14>MAY</bcp14> omit the field under an
+        applicable security or privacy policy. Included identifiers use
+        the format in <xref target="syntax"/>. Parallel replies can share
+        a Conversation-ID while retaining distinct Message-ID values
+        and reply relationships.</t>
+        <t>If the parent has no usable field, an originator <bcp14>MAY</bcp14> reuse
+        an identifier already associated with that parent in trusted
+        local state. Establishing that association requires the checks
+        in <xref target="semantics"/>. Otherwise, it <bcp14>MAY</bcp14> omit the field
+        or generate a fresh identifier. It <bcp14>MUST NOT</bcp14> pick one value from
+        duplicated or malformed fields as a substitute for that state.</t>
+        <t>A participating application <bcp14>MAY</bcp14> also reuse an identifier
+        from trusted local state in a non-reply message that continues
+        an established conversation. Sharing a Conversation-ID does
+        not require adding In-Reply-To or References where no
+        corresponding reply relationship exists.</t>
+        <t>When starting a separate conversation, including a private
+        branch, the originator <bcp14>MUST</bcp14> either generate a fresh identifier
+        or omit the field. A changed Subject alone does not establish
+        that intention. An implementation <bcp14>SHOULD</bcp14> let its user or calling
+        application choose whether to start a separate conversation.</t>
+        <t>A user-composed forward, including a forward as an attachment,
+        <bcp14>SHOULD</bcp14> be treated as a new conversation by default. An explicit
+        decision to continue the same context <bcp14>MAY</bcp14> retain the identifier,
+        after considering the changed audience. Fields in an attached
+        message apply to that message and are not automatically inherited
+        by the outer message. Existing reply-field semantics still apply.</t>
+      </section>
+      <section anchor="relay">
+        <name>Relay, Redistribution, and Stored Messages</name>
+        <t>Except when applying the removal policy below, an MSA, MTA, or
+        gateway implementing this specification <bcp14>MUST</bcp14> preserve a single valid
+        Conversation-ID during ordinary submission or relay, including
+        when it assigns a different Message-ID. The same requirement
+        applies to a participating mailing-list redistributor or automatic
+        forwarder when forwarding the same message. An implementation
+        <bcp14>MUST NOT</bcp14> replace that valid identifier merely because Message-ID
+        changes.</t>
+        <t>An intermediary <bcp14>MAY</bcp14> remove the field to enforce an explicit
+        security or privacy policy at a processing boundary. This
+        exception permits removal, not replacement during ordinary
+        relay. Removal loses the additional correlation signal but
+        cannot make earlier copies unlinkable. When preserving a field,
+        implementations <bcp14>SHOULD</bcp14> leave its wire representation unchanged;
+        even semantically harmless rewriting can affect signatures.</t>
+        <t>The experiment depends on preservation along the delivery
+        path, including through nonparticipating intermediaries that
+        have no obligation to preserve the field. Removal and its
+        effect on correlation are measured under
+        <xref target="evaluation"/>.</t>
+        <t>Stored correlation metadata <bcp14>SHOULD</bcp14> be kept separately from
+        the original message. A service <bcp14>MUST NOT</bcp14> alter a stored original
+        or a message accepted for delivery or ordinary relay solely to
+        add its local Conversation-ID. A participating MSA acting on
+        behalf of the originator can add the field during initial
+        submission if it has sufficient conversation context and follows
+        the generation, propagation, and cardinality rules. The effects
+        on existing signatures are described in
+        <xref target="security"/>.</t>
+      </section>
+    </section>
+    <section anchor="existing">
+      <name>Relationship to Existing Mechanisms</name>
+      <t>The name Conversation-ID also appeared in the expired PePP
+      instant-messaging proposal <xref target="PEPP"/>, Section 6.19.
+      That proposal provides historical context. This specification
+      defines the field for Internet mail and does not specify
+      interoperability or a shared identifier namespace with PePP.</t>
+      <t>Message-ID identifies a message, while In-Reply-To and References
+      describe its ancestry <xref target="RFC5322"/>. Conversation-ID
+      does not recover missing ancestors or establish message order.
+      References can be folded across lines, so the per-line length
+      limit is not a limit on the total length of that field.</t>
+      <t>IMAP THREAD <xref target="RFC5256"/>, IMAP OBJECTID THREADID
+      <xref target="RFC8474"/>, and JMAP threadId <xref target="RFC8621"/>
+      expose server-computed groupings or identifiers. A server
+      <bcp14>MAY</bcp14> consider a valid Conversation-ID under local policy,
+      but <bcp14>MUST NOT</bcp14> infer that it can change an already assigned
+      server identifier in violation of those protocols. This
+      specification defines no direct mapping or shared namespace
+      between Conversation-ID and those identifiers.</t>
+      <t>The experiment also compares approaches based on root Message-ID
+      values, provider identifier mappings, and application-specific
+      reply routing where available. Existing fields such as Thread-Index
+      and Thread-Topic are unaffected.</t>
+    </section>
+    <section anchor="experiment">
+      <name>Experiment Plan</name>
+      <t>The experiment will compare existing correlation methods with
+      and without Conversation-ID across independently operated systems,
+      considering grouping errors, disclosure risks, and integration
+      effort. This revision reports no measurements.</t>
+      <section anchor="evaluation">
+        <name>Evaluation and Reporting</name>
+        <t>Reports should distinguish participating originators from
+        unmodified clients, and transport preservation from propagation
+        into replies. Record client and server versions, submission
+        paths, enabled features, and test dates. Use synthetic messages
+        or appropriately redacted fixtures so that others can reproduce
+        the results.</t>
+        <t>The baseline should use correctly generated reply fields and
+        available mappings between original and delivered Message-ID
+        values. Tests should cover replies, reply-all, concurrent replies,
+        changed subjects, private branches, mailing lists, user-composed
+        and automatic forwards, and removal of Conversation-ID. Include
+        forged identifiers, duplicate fields, malformed values,
+        conflicting ancestry, and cross-tenant input.</t>
+        <t>Report transport preservation, reply propagation, correct
+        correlations, false merges, false splits, integration effort,
+        and mapping-maintenance cost separately, including changes from
+        the baseline. Tests between services under common control do not
+        by themselves establish independent implementation. Report
+        negative results as well, including loss of the field on common
+        paths and cases where it provides no additional benefit.</t>
+        <t>A successful result should show reproducible gains on
+        documented paths between independently implemented participants,
+        including handling of conflicts and legacy clients. Any
+        unauthorized cross-account disclosure blocks deployment.
+        If propagation changes prove impractical or the field offers
+        no useful gain over the baseline, the design should be revised
+        or the experiment discontinued.</t>
+      </section>
+      <section anchor="planned">
+        <name>Planned Evaluation Environment</name>
+        <t>Note to the RFC Editor: remove this subsection before
+        publication.</t>
+        <t>The author plans to evaluate the field in Oveyon
+        (https://oveyon.com/), an email service operated by Akamind Inc.
+        Independent MUA, helpdesk, and mail-service implementers are
+        invited to take part. Later revisions can document verified
+        implementation status and interoperability results following
+        <xref target="RFC7942"/>.</t>
+      </section>
+    </section>
+    <section anchor="security">
+      <name>Security Considerations</name>
+      <t>An attacker can copy or choose a syntactically valid identifier;
+      UUID uniqueness does not prevent deliberate reuse. Receivers
+      <bcp14>MUST NOT</bcp14> treat possession of a Conversation-ID as permission
+      to retrieve history, join a private conversation, select another
+      tenant, or trigger a privileged action. Automated agents and
+      workflow systems need authorization checks independent of this
+      field.</t>
+      <t>Correlation lookups <bcp14>MUST</bcp14> remain inside the applicable account,
+      tenant, mailbox, or otherwise authorized processing context.
+      Implementations <bcp14>MUST NOT</bcp14> automatically merge records across access
+      boundaries because identifiers match. Authentication of a sender
+      alone does not establish that sender's authority over a particular
+      conversation.</t>
+      <t>An originator including Conversation-ID in a message it signs
+      with DKIM <xref target="RFC6376"/> <bcp14>SHOULD</bcp14> add the field before
+      generating the signature and <bcp14>SHOULD</bcp14> include it among the signed
+      header fields. Signers <bcp14>SHOULD</bcp14> consider protecting against
+      insertion of another instance as described in
+      <xref target="RFC6376"/>, Section 5.4. Verification authenticates
+      the signing domain's assertion and the covered content. It does
+      not establish conversation membership or identify the party that
+      created the identifier.</t>
+      <t>If a gateway adds Conversation-ID after DKIM signing, a
+      signature whose h= list omits the field name does not cover the
+      added field. The addition alone does not invalidate that signature.
+      If the signer listed Conversation-ID in h= when the field was
+      absent, adding it causes that signature to fail verification;
+      see <xref target="RFC6376"/>, Sections 3.5 and 5.4.</t>
+      <t>A later signature covering the field conveys that signer's
+      assertion; it does not extend or repair an earlier signature.
+      Implementations evaluating integrity <bcp14>MUST</bcp14> determine whether a
+      successfully verified signature covers the field. A message-level
+      DKIM pass is insufficient. Signing does not permit field insertion
+      prohibited by <xref target="relay"/>.</t>
+      <t>Implementations <bcp14>MUST</bcp14> apply the duplicate and malformed-field
+      rules in <xref target="parsing"/>, bound parsing and storage work,
+      and treat the value as data. They <bcp14>MUST NOT</bcp14> automatically resolve
+      the URN or fetch an external resource solely because the field is
+      present. Authorized lookups in implementation storage or configured
+      services remain possible. No origin authority or resource-resolution
+      mechanism is defined.</t>
+      <t>Without an applicable integrity mechanism, removal of the field
+      may go undetected. Its absence <bcp14>MUST NOT</bcp14> grant additional privileges
+      or bypass existing policy. Adding a valid field <bcp14>MUST NOT</bcp14> increase
+      trust in message bodies or instructions supplied to automated
+      agents.</t>
+    </section>
+    <section anchor="privacy">
+      <name>Privacy Considerations</name>
+      <t>A stable identifier allows recipients, intermediaries, archives,
+      and log operators to correlate messages. It can expose
+      relationships even when addresses or subjects differ.
+      <xref target="RFC6973"/> discusses correlation and secondary-use
+      risks.</t>
+      <t>UUIDv4 avoids encoding a host address or timestamp, but the
+      identifier is neither secret nor resistant to tracking. Originators
+      <bcp14>MUST NOT</bcp14> deliberately reuse it as a customer, campaign, or
+      cross-conversation tracking identifier. Private branches and
+      forwards follow the boundary policy in <xref target="reply"/>.
+      Removing Conversation-ID leaves other possible links through
+      References, quoted content, and attachments.</t>
+      <t>Operators <bcp14>SHOULD</bcp14> minimize retention and sharing of identifiers
+      in telemetry and public test reports. Users or applications
+      <bcp14>SHOULD</bcp14> be able to omit the field when exposing conversation
+      continuity is inappropriate.</t>
+    </section>
+    <section anchor="iana">
+      <name>IANA Considerations</name>
+      <t>IANA is requested to register Conversation-ID in the Provisional
+      Message Header Field Names registry <xref target="RFC3864"/>
+      using the following template.</t>
+      <dl newline="true" spacing="normal">
+        <dt>Header field name:</dt><dd>Conversation-ID</dd>
+        <dt>Applicable protocol:</dt><dd>mail</dd>
+        <dt>Status:</dt><dd>provisional</dd>
+        <dt>Trace:</dt><dd>no</dd>
+        <dt>Author/Change controller:</dt>
+        <dd>Juliano Primavesi, Akamind Inc.; jprimavesi@akamind.net</dd>
+        <dt>Specification document(s):</dt>
+        <dd>This document, <xref target="field"/>.</dd>
+        <dt>Related information:</dt><dd>None.</dd>
+      </dl>
+      <t>Provisional registration does not imply endorsement by the IETF
+      or IANA.</t>
+    </section>
+  </middle>
+  <back>
+    <references anchor="normative">
+        <name>Normative References</name>
+        <reference anchor="RFC2119" target="https://www.rfc-editor.org/info/rfc2119">
+  <front>
+    <title>Key words for use in RFCs to Indicate Requirement Levels</title>
+    <author fullname="S. Bradner" initials="S." surname="Bradner"/>
+    <date month="March" year="1997"/>
+    <abstract>
+      <t>In many standards track documents several words are used to signify the requirements in the specification. These words are often capitalized. This document defines these words as they should be interpreted in IETF documents. This document specifies an Internet Best Current Practices for the Internet Community, and requests discussion and suggestions for improvements.</t>
+    </abstract>
+  </front>
+  <seriesInfo name="BCP" value="14"/>
+  <seriesInfo name="RFC" value="2119"/>
+  <seriesInfo name="DOI" value="10.17487/RFC2119"/>
+</reference>
+<reference anchor="RFC5234" target="https://www.rfc-editor.org/info/rfc5234">
+  <front>
+    <title>Augmented BNF for Syntax Specifications: ABNF</title>
+    <author fullname="D. Crocker" initials="D." role="editor" surname="Crocker"/>
+    <author fullname="P. Overell" initials="P." surname="Overell"/>
+    <date month="January" year="2008"/>
+    <abstract>
+      <t>Internet technical specifications often need to define a formal syntax. Over the years, a modified version of Backus-Naur Form (BNF), called Augmented BNF (ABNF), has been popular among many Internet specifications. The current specification documents ABNF. It balances compactness and simplicity with reasonable representational power. The differences between standard BNF and ABNF involve naming rules, repetition, alternatives, order-independence, and value ranges. This specification also supplies additional rule definitions and encoding for a core lexical analyzer of the type common to several Internet specifications. [STANDARDS-TRACK]</t>
+    </abstract>
+  </front>
+  <seriesInfo name="STD" value="68"/>
+  <seriesInfo name="RFC" value="5234"/>
+  <seriesInfo name="DOI" value="10.17487/RFC5234"/>
+</reference>
+<reference anchor="RFC5322" target="https://www.rfc-editor.org/info/rfc5322">
+  <front>
+    <title>Internet Message Format</title>
+    <author fullname="P. Resnick" initials="P." role="editor" surname="Resnick"/>
+    <date month="October" year="2008"/>
+    <abstract>
+      <t>This document specifies the Internet Message Format (IMF), a syntax for text messages that are sent between computer users, within the framework of "electronic mail" messages. This specification is a revision of Request For Comments (RFC) 2822, which itself superseded Request For Comments (RFC) 822, "Standard for the Format of ARPA Internet Text Messages", updating it to reflect current practice and incorporating incremental changes that were specified in other RFCs. [STANDARDS-TRACK]</t>
+    </abstract>
+  </front>
+  <seriesInfo name="RFC" value="5322"/>
+  <seriesInfo name="DOI" value="10.17487/RFC5322"/>
+</reference>
+<reference anchor="RFC6376" target="https://www.rfc-editor.org/info/rfc6376">
+  <front>
+    <title>DomainKeys Identified Mail (DKIM) Signatures</title>
+    <author fullname="D. Crocker" initials="D." role="editor" surname="Crocker"/>
+    <author fullname="T. Hansen" initials="T." role="editor" surname="Hansen"/>
+    <author fullname="M. Kucherawy" initials="M." role="editor" surname="Kucherawy"/>
+    <date month="September" year="2011"/>
+    <abstract>
+      <t>DomainKeys Identified Mail (DKIM) permits a person, role, or organization that owns the signing domain to claim some responsibility for a message by associating the domain with the message. This can be an author's organization, an operational relay, or one of their agents. DKIM separates the question of the identity of the Signer of the message from the purported author of the message. Assertion of responsibility is validated through a cryptographic signature and by querying the Signer's domain directly to retrieve the appropriate public key. Message transit from author to recipient is through relays that typically make no substantive change to the message content and thus preserve the DKIM signature.</t>
+      <t>This memo obsoletes RFC 4871 and RFC 5672. [STANDARDS-TRACK]</t>
+    </abstract>
+  </front>
+  <seriesInfo name="STD" value="76"/>
+  <seriesInfo name="RFC" value="6376"/>
+  <seriesInfo name="DOI" value="10.17487/RFC6376"/>
+</reference>
+<reference anchor="RFC8174" target="https://www.rfc-editor.org/info/rfc8174">
+  <front>
+    <title>Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words</title>
+    <author fullname="B. Leiba" initials="B." surname="Leiba"/>
+    <date month="May" year="2017"/>
+    <abstract>
+      <t>RFC 2119 specifies common key words that may be used in protocol specifications. This document aims to reduce the ambiguity by clarifying that only UPPERCASE usage of the key words have the defined special meanings.</t>
+    </abstract>
+  </front>
+  <seriesInfo name="BCP" value="14"/>
+  <seriesInfo name="RFC" value="8174"/>
+  <seriesInfo name="DOI" value="10.17487/RFC8174"/>
+</reference>
+<reference anchor="RFC9562" target="https://www.rfc-editor.org/info/rfc9562">
+  <front>
+    <title>Universally Unique IDentifiers (UUIDs)</title>
+    <author fullname="K. Davis" initials="K." surname="Davis"/>
+    <author fullname="B. Peabody" initials="B." surname="Peabody"/>
+    <author fullname="P. Leach" initials="P." surname="Leach"/>
+    <date month="May" year="2024"/>
+    <abstract>
+      <t>This specification defines UUIDs (Universally Unique IDentifiers) --
+also known as GUIDs (Globally Unique IDentifiers) -- and a Uniform
+Resource Name namespace for UUIDs. A UUID is 128 bits long and is
+intended to guarantee uniqueness across space and time. UUIDs were
+originally used in the Apollo Network Computing System (NCS), later
+in the Open Software Foundation's (OSF's) Distributed Computing
+Environment (DCE), and then in Microsoft Windows platforms.</t>
+      <t>This specification is derived from the OSF DCE specification with the
+kind permission of the OSF (now known as "The Open Group"). Information from earlier versions of the OSF DCE specification have
+been incorporated into this document. This document obsoletes RFC
+4122.</t>
+    </abstract>
+  </front>
+  <seriesInfo name="RFC" value="9562"/>
+  <seriesInfo name="DOI" value="10.17487/RFC9562"/>
+</reference>
+      </references>
+      <references anchor="informative">
+        <name>Informative References</name>
+        <reference anchor="RFC3864" target="https://www.rfc-editor.org/info/rfc3864">
+  <front>
+    <title>Registration Procedures for Message Header Fields</title>
+    <author fullname="G. Klyne" initials="G." surname="Klyne"/>
+    <author fullname="M. Nottingham" initials="M." surname="Nottingham"/>
+    <author fullname="J. Mogul" initials="J." surname="Mogul"/>
+    <date month="September" year="2004"/>
+    <abstract>
+      <t>This specification defines registration procedures for the message header fields used by Internet mail, HTTP, Netnews and other applications. This document specifies an Internet Best Current Practices for the Internet Community, and requests discussion and suggestions for improvements.</t>
+    </abstract>
+  </front>
+  <seriesInfo name="BCP" value="90"/>
+  <seriesInfo name="RFC" value="3864"/>
+  <seriesInfo name="DOI" value="10.17487/RFC3864"/>
+</reference>
+<reference anchor="RFC5256" target="https://www.rfc-editor.org/info/rfc5256">
+  <front>
+    <title>Internet Message Access Protocol - SORT and THREAD Extensions</title>
+    <author fullname="M. Crispin" initials="M." surname="Crispin"/>
+    <author fullname="K. Murchison" initials="K." surname="Murchison"/>
+    <date month="June" year="2008"/>
+    <abstract>
+      <t>This document describes the base-level server-based sorting and threading extensions to the IMAP protocol. These extensions provide substantial performance improvements for IMAP clients that offer sorted and threaded views. [STANDARDS-TRACK]</t>
+    </abstract>
+  </front>
+  <seriesInfo name="RFC" value="5256"/>
+  <seriesInfo name="DOI" value="10.17487/RFC5256"/>
+</reference>
+<reference anchor="RFC5598" target="https://www.rfc-editor.org/info/rfc5598">
+  <front>
+    <title>Internet Mail Architecture</title>
+    <author fullname="D. Crocker" initials="D." surname="Crocker"/>
+    <date month="July" year="2009"/>
+    <abstract>
+      <t>Over its thirty-five-year history, Internet Mail has changed significantly in scale and complexity, as it has become a global infrastructure service. These changes have been evolutionary, rather than revolutionary, reflecting a strong desire to preserve both its installed base and its usefulness. To collaborate productively on this large and complex system, all participants need to work from a common view of it and use a common language to describe its components and the interactions among them. But the many differences in perspective currently make it difficult to know exactly what another participant means. To serve as the necessary common frame of reference, this document describes the enhanced Internet Mail architecture, reflecting the current service. This memo provides information for the Internet community.</t>
+    </abstract>
+  </front>
+  <seriesInfo name="RFC" value="5598"/>
+  <seriesInfo name="DOI" value="10.17487/RFC5598"/>
+</reference>
+<reference anchor="RFC6973" target="https://www.rfc-editor.org/info/rfc6973">
+  <front>
+    <title>Privacy Considerations for Internet Protocols</title>
+    <author fullname="A. Cooper" initials="A." surname="Cooper"/>
+    <author fullname="H. Tschofenig" initials="H." surname="Tschofenig"/>
+    <author fullname="B. Aboba" initials="B." surname="Aboba"/>
+    <author fullname="J. Peterson" initials="J." surname="Peterson"/>
+    <author fullname="J. Morris" initials="J." surname="Morris"/>
+    <author fullname="M. Hansen" initials="M." surname="Hansen"/>
+    <author fullname="R. Smith" initials="R." surname="Smith"/>
+    <date month="July" year="2013"/>
+    <abstract>
+      <t>This document offers guidance for developing privacy considerations for inclusion in protocol specifications. It aims to make designers, implementers, and users of Internet protocols aware of privacy-related design choices. It suggests that whether any individual RFC warrants a specific privacy considerations section will depend on the document's content.</t>
+    </abstract>
+  </front>
+  <seriesInfo name="RFC" value="6973"/>
+  <seriesInfo name="DOI" value="10.17487/RFC6973"/>
+</reference>
+<reference anchor="RFC7942" target="https://www.rfc-editor.org/info/rfc7942">
+  <front>
+    <title>Improving Awareness of Running Code: The Implementation Status Section</title>
+    <author fullname="Y. Sheffer" initials="Y." surname="Sheffer"/>
+    <author fullname="A. Farrel" initials="A." surname="Farrel"/>
+    <date month="July" year="2016"/>
+    <abstract>
+      <t>This document describes a simple process that allows authors of Internet-Drafts to record the status of known implementations by including an Implementation Status section. This will allow reviewers and working groups to assign due consideration to documents that have the benefit of running code, which may serve as evidence of valuable experimentation and feedback that have made the implemented protocols more mature.</t>
+      <t>This process is not mandatory. Authors of Internet-Drafts are encouraged to consider using the process for their documents, and working groups are invited to think about applying the process to all of their protocol specifications. This document obsoletes RFC 6982, advancing it to a Best Current Practice.</t>
+    </abstract>
+  </front>
+  <seriesInfo name="BCP" value="205"/>
+  <seriesInfo name="RFC" value="7942"/>
+  <seriesInfo name="DOI" value="10.17487/RFC7942"/>
+</reference>
+<reference anchor="RFC8474" target="https://www.rfc-editor.org/info/rfc8474">
+  <front>
+    <title>IMAP Extension for Object Identifiers</title>
+    <author fullname="B. Gondwana" initials="B." role="editor" surname="Gondwana"/>
+    <date month="September" year="2018"/>
+    <abstract>
+      <t>This document updates RFC 3501 (IMAP4rev1) with persistent identifiers on mailboxes and messages to allow clients to more efficiently reuse cached data when resources have changed location on the server.</t>
+    </abstract>
+  </front>
+  <seriesInfo name="RFC" value="8474"/>
+  <seriesInfo name="DOI" value="10.17487/RFC8474"/>
+</reference>
+<reference anchor="RFC8621" target="https://www.rfc-editor.org/info/rfc8621">
+  <front>
+    <title>The JSON Meta Application Protocol (JMAP) for Mail</title>
+    <author fullname="N. Jenkins" initials="N." surname="Jenkins"/>
+    <author fullname="C. Newman" initials="C." surname="Newman"/>
+    <date month="August" year="2019"/>
+    <abstract>
+      <t>This document specifies a data model for synchronising email data with a server using the JSON Meta Application Protocol (JMAP). Clients can use this to efficiently search, access, organise, and send messages, and to get push notifications for fast resynchronisation when new messages are delivered or a change is made in another client.</t>
+    </abstract>
+  </front>
+  <seriesInfo name="RFC" value="8621"/>
+  <seriesInfo name="DOI" value="10.17487/RFC8621"/>
+</reference>
+        <reference anchor="SES-RAW" target="https://docs.aws.amazon.com/ses/latest/APIReference/API_SendRawEmail.html">
+          <front>
+            <title>SendRawEmail - Amazon Simple Email Service</title>
+            <author><organization>Amazon Web Services</organization></author>
+            <date/>
+          </front>
+          <annotation>Accessed 10 October 2026.</annotation>
+        </reference>
+        <reference anchor="SES-EVENTS" target="https://docs.aws.amazon.com/ses/latest/dg/event-publishing-retrieving-sns-contents.html">
+          <front>
+            <title>Contents of event data that Amazon SES publishes to Amazon SNS</title>
+            <author><organization>Amazon Web Services</organization></author>
+            <date/>
+          </front>
+          <annotation>Accessed 10 October 2026.</annotation>
+        </reference>
+<reference anchor="PEPP" target="https://datatracker.ietf.org/doc/html/draft-sugano-impp-proposal-pepp-00">
+   <front>
+      <title>Privacy-enhanced Presence Protocol (PePP)</title>
+      <author initials="H." surname="Sugano" fullname="Hiroyasu Sugano">
+         <organization>Fujitsu</organization>
+      </author>
+      <author initials="A." surname="Iwakawa" fullname="Akinori Iwakawa">
+         <organization>Fujitsu</organization>
+      </author>
+      <author initials="K." surname="Otani" fullname="Koji Otani">
+         <organization>Fujitsu</organization>
+      </author>
+      <author initials="T." surname="Ohno" fullname="Takashi Ohno">
+         <organization>Fujitsu</organization>
+      </author>
+      <author initials="S." surname="Fujimoto" fullname="Shingo Fujimoto">
+         <organization>Fujitsu</organization>
+      </author>
+      <date month="June" day="14" year="2000"/>
+      <abstract>
+   <t>This document describes a protocol designed for scalable and secure
+Instant Messaging and Presence Services.  The protocol, Privacy
+enhanced Presence Protocol (PePP), has been developed for an
+experimental Presence Service and recently extended to satisfy a
+variety of requirements for the Internet-wide, interoperable
+standards.  This is a protocol proposal for the IMPP Working Group.
+
+
+   </t>
+      </abstract>
+   </front>
+   <seriesInfo name="Internet-Draft" value="draft-sugano-impp-proposal-pepp-00"/>
+   
+<annotation>Expired historical proposal; cited for context only.</annotation></reference>
+      </references>
+    <section anchor="examples">
+      <name>Illustrative Message Sequence</name>
+      <t>These field fragments omit unrelated fields. Alice originates
+      a message with a fresh identifier:</t>
+      <artwork><![CDATA[
+From: Alice <alice@example.com>
+To: Bob <bob@example.net>
+Subject: Project discussion
+Message-ID: <m1@example.com>
+Conversation-ID: urn:uuid:550e8400-e29b-41d4-a716-446655440000
+]]></artwork>
+      <t>Bob's participating client continues that conversation. The
+      Message-ID changes and the Conversation-ID stays the same:</t>
+      <artwork><![CDATA[
+From: Bob <bob@example.net>
+To: Alice <alice@example.com>
+Subject: Re: Project discussion
+Message-ID: <m2@example.net>
+In-Reply-To: <m1@example.com>
+References: <m1@example.com>
+Conversation-ID: urn:uuid:550e8400-e29b-41d4-a716-446655440000
+]]></artwork>
+      <t>If a submission service instead delivered Alice's Message-ID
+      as &lt;wire1@example.org&gt;, Bob's reply fields would reference
+      that delivered identifier. A preserved Conversation-ID could
+      still supply the same additional hint when Bob's client
+      participates.</t>
+      <t>For a third case, assume Message-ID was rewritten as above
+      and Bob uses a nonparticipating client. Its reply might contain
+      these fields, with no Conversation-ID:</t>
+      <artwork><![CDATA[
+From: Bob <bob@example.net>
+To: Alice <alice@example.com>
+Subject: Re: Project discussion
+Message-ID: <m3@example.net>
+In-Reply-To: <wire1@example.org>
+References: <wire1@example.org>
+]]></artwork>
+      <t>Alice's application correlates this reply using the conventional
+      reply fields and any trusted local mapping from &lt;wire1@example.org&gt;
+      to &lt;m1@example.com&gt;, subject to <xref target="semantics"/>.
+      The missing field does not by itself start a new conversation or
+      constitute a delivery error. If the available evidence is
+      insufficient, the application can leave the reply ungrouped pending
+      a local or user decision.</t>
+      <t>If trusted local state associates the reply with the earlier
+      conversation, Alice can reuse its identifier in a newly composed
+      response as described in <xref target="reply"/>. Her application
+      does not insert the missing field into Bob's stored message;
+      see <xref target="relay"/>.</t>
+      <t>If Bob forwards the message to Carol to start a private
+      discussion, the outer message uses a fresh identifier or omits
+      Conversation-ID. It does not automatically inherit Alice's
+      identifier from quoted or attached content.</t>
+    </section>
+  </back>
+</rfc>

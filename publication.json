@@ -1,0 +1,27 @@
+{
+  "document_name": "draft-primavesi-conversation-id",
+  "revision": "00",
+  "title": "The Conversation-ID Email Header Field",
+  "intended_status": "Experimental",
+  "document_status": "Individual Internet-Draft",
+  "datatracker_url": "https://datatracker.ietf.org/doc/draft-primavesi-conversation-id/",
+  "published_at_utc": "2026-10-10T18:54:23Z",
+  "author_contact": "jprimavesi@akamind.net",
+  "files": [
+    {
+      "path": "draft-primavesi-conversation-id-00.xml",
+      "source_url": "https://www.ietf.org/archive/id/draft-primavesi-conversation-id-00.xml",
+      "retrieved_at_utc": "2026-10-10T19:18:03.767108+00:00",
+      "bytes": 43511,
+      "sha256": "ce344fd61cd484dd7744e447e3ef788696c86a32be671f9340d4688410cf4937"
+    },
+    {
+      "path": "draft-primavesi-conversation-id-00.txt",
+      "source_url": "https://www.ietf.org/archive/id/draft-primavesi-conversation-id-00.txt",
+      "retrieved_at_utc": "2026-10-10T19:18:03.669717+00:00",
+      "bytes": 31844,
+      "sha256": "8a8deff345bca7f92aa501ff096d2ce02f2e40a183de5547faa42a22294f7930"
+    }
+  ],
+  "note": "Hashes cover the original bytes retrieved from the IETF archive. Later working changes are not a published revision."
+}

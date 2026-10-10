@@ -1,0 +1,424 @@
+[
+  {
+    "name": "canonical",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-a716-446655440000\r\n"
+    ],
+    "expected": "urn:uuid:550e8400-e29b-41d4-a716-446655440000"
+  },
+  {
+    "name": "uppercase-token",
+    "fields": [
+      "Conversation-ID: URN:UUID:550E8400-E29B-41D4-A716-446655440000\r\n"
+    ],
+    "expected": "urn:uuid:550e8400-e29b-41d4-a716-446655440000"
+  },
+  {
+    "name": "lowercase-field-name",
+    "fields": [
+      "conversation-id: urn:uuid:550e8400-e29b-41d4-a716-446655440000\r\n"
+    ],
+    "expected": "urn:uuid:550e8400-e29b-41d4-a716-446655440000"
+  },
+  {
+    "name": "no-leading-space",
+    "fields": [
+      "Conversation-ID:urn:uuid:550e8400-e29b-41d4-a716-446655440000\r\n"
+    ],
+    "expected": "urn:uuid:550e8400-e29b-41d4-a716-446655440000"
+  },
+  {
+    "name": "tab-surrounding-value",
+    "fields": [
+      "Conversation-ID:\turn:uuid:550e8400-e29b-41d4-a716-446655440000\t\r\n"
+    ],
+    "expected": "urn:uuid:550e8400-e29b-41d4-a716-446655440000"
+  },
+  {
+    "name": "fold-before-token",
+    "fields": [
+      "Conversation-ID:\r\n urn:uuid:550e8400-e29b-41d4-a716-446655440000\r\n"
+    ],
+    "expected": "urn:uuid:550e8400-e29b-41d4-a716-446655440000"
+  },
+  {
+    "name": "fold-after-token",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-a716-446655440000\r\n \r\n"
+    ],
+    "expected": "urn:uuid:550e8400-e29b-41d4-a716-446655440000"
+  },
+  {
+    "name": "valid-variant-8",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-8716-446655440000\r\n"
+    ],
+    "expected": "urn:uuid:550e8400-e29b-41d4-8716-446655440000"
+  },
+  {
+    "name": "valid-variant-9",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-9716-446655440000\r\n"
+    ],
+    "expected": "urn:uuid:550e8400-e29b-41d4-9716-446655440000"
+  },
+  {
+    "name": "valid-variant-a",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-a716-446655440000\r\n"
+    ],
+    "expected": "urn:uuid:550e8400-e29b-41d4-a716-446655440000"
+  },
+  {
+    "name": "valid-variant-b",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-b716-446655440000\r\n"
+    ],
+    "expected": "urn:uuid:550e8400-e29b-41d4-b716-446655440000"
+  },
+  {
+    "name": "unsupported-version-0",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-01d4-a716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "unsupported-version-1",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-11d4-a716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "unsupported-version-3",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-31d4-a716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "unsupported-version-5",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-51d4-a716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "unsupported-version-6",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-61d4-a716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "unsupported-version-7",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-71d4-a716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "unsupported-version-8",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-81d4-a716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "unsupported-version-9",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-91d4-a716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "unsupported-version-a",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-a1d4-a716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "unsupported-version-b",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-b1d4-a716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "unsupported-version-c",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-c1d4-a716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "unsupported-version-d",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-d1d4-a716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "unsupported-version-e",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-e1d4-a716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "unsupported-version-f",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-f1d4-a716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "invalid-variant-0",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-0716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "invalid-variant-1",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-1716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "invalid-variant-2",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-2716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "invalid-variant-3",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-3716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "invalid-variant-4",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-4716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "invalid-variant-5",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-5716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "invalid-variant-6",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-6716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "invalid-variant-7",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-7716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "invalid-variant-c",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-c716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "invalid-variant-d",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-d716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "invalid-variant-e",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-e716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "invalid-variant-f",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-f716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "quoted",
+    "fields": [
+      "Conversation-ID: \"urn:uuid:550e8400-e29b-41d4-a716-446655440000\"\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "angle-brackets",
+    "fields": [
+      "Conversation-ID: <urn:uuid:550e8400-e29b-41d4-a716-446655440000>\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "no-urn-prefix",
+    "fields": [
+      "Conversation-ID: 550e8400-e29b-41d4-a716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "parameter",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-a716-446655440000;origin=\"https://example.com\"\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "comma-list",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-a716-446655440000, urn:uuid:550e8400-e29b-41d4-a716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "inner-space",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-4 1d4-a716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "inner-fold",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-4\r\n 1d4-a716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "wrong-hyphen",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400e29b-41d4-a716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "non-hex",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-a716-44665544000g\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "unicode-digit",
+    "fields": [
+      "Conversation-ID: urn:uuid:\uff1550e8400-e29b-41d4-a716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "leading-nbsp",
+    "fields": [
+      "Conversation-ID: \u00a0urn:uuid:550e8400-e29b-41d4-a716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "extra-hex",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-a716-4466554400000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "nil-uuid",
+    "fields": [
+      "Conversation-ID: urn:uuid:00000000-0000-0000-0000-000000000000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "max-uuid",
+    "fields": [
+      "Conversation-ID: urn:uuid:ffffffff-ffff-ffff-ffff-ffffffffffff\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "comment",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-a716-446655440000 (comment)\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "empty",
+    "fields": [
+      "Conversation-ID: \r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "nul",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-a716-446655440000\u0000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "bare-lf",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-a716-446655440000\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "absent",
+    "fields": [],
+    "expected": null
+  },
+  {
+    "name": "duplicate-identical",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-a716-446655440000\r\n",
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-a716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "duplicate-case-name",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-a716-446655440000\r\n",
+      "CONVERSATION-ID: urn:uuid:550e8400-e29b-41d4-a716-446655440000\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "duplicate-valid-invalid",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-a716-446655440000\r\n",
+      "Conversation-ID: invalid\r\n"
+    ],
+    "expected": null
+  },
+  {
+    "name": "duplicate-conflicting",
+    "fields": [
+      "Conversation-ID: urn:uuid:550e8400-e29b-41d4-a716-446655440000\r\n",
+      "Conversation-ID: urn:uuid:f47ac10b-58cc-4372-a567-0e02b2c3d479\r\n"
+    ],
+    "expected": null
+  }
+]
